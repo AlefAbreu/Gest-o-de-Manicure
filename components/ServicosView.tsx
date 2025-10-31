@@ -13,6 +13,8 @@ interface ServicosViewProps {
   horasTrabalhadasMes: number;
   onHorasTrabalhadasChange: (novasHoras: number) => void;
   onUpdateServico: (updatedServico: Servico) => void;
+  onAddServico: (newServicoData: { nomeServico: string; tempoEstimadoMinutos: number; precoDeVendaManual: number }) => void;
+  onDeleteServico: (servicoId: string) => void;
 }
 
 interface TooltipContentProps {
@@ -222,73 +224,193 @@ const ServicoPricingEditor: React.FC<{
     onUpdateServico: (updatedServico: Servico) => void;
 }> = ({ service, details, onUpdateServico }) => {
     const custoProduto = details.custoMaterial + details.custoAmortizacao;
-    const [price, setPrice] = useState<number | string>(details.precoSugerido);
-    const [margin, setMargin] = useState<number | string>(service.margemLucroDesejada * 100);
-    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
-
-    useEffect(() => {
-        setPrice(details.precoSugerido);
-        setMargin(service.margemLucroDesejada * 100);
-    }, [details.precoSugerido, service.margemLucroDesejada]);
+    const precoMinimoSugerido = details.custoTotal;
     
+    const [editingState, setEditingState] = useState({
+        isManual: false,
+        price: '',
+        margin: '',
+    });
+    const [isDirty, setIsDirty] = useState(false);
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+    const [showTooltip, setShowTooltip] = useState(false);
+
+    // This effect initializes the form state when the service prop changes.
+    // It's crucial for resetting the form after saving or when a new service is selected.
+    useEffect(() => {
+        const newIsManual = service.precoDeVendaManual != null;
+        let currentPrice, currentMargin;
+
+        if (newIsManual) {
+            currentPrice = service.precoDeVendaManual!.toFixed(2);
+            if (custoProduto > 0) {
+                currentMargin = (((service.precoDeVendaManual! / custoProduto) - 1) * 100).toFixed(1);
+            } else {
+                currentMargin = '0.0';
+            }
+        } else {
+            currentPrice = (custoProduto * (1 + service.margemLucroDesejada)).toFixed(2);
+            currentMargin = (service.margemLucroDesejada * 100).toFixed(1);
+        }
+
+        setEditingState({
+            isManual: newIsManual,
+            price: currentPrice,
+            margin: currentMargin,
+        });
+
+        setIsDirty(false);
+        setSaveState('idle');
+    }, [service, custoProduto]);
+
     const handlePriceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        if (value === '') {
-            setPrice('');
-            setMargin('');
-            return;
+        const newPriceValue = e.target.value;
+        let newMarginValue = editingState.margin;
+
+        if (!editingState.isManual) {
+            const newPriceNum = parseFloat(newPriceValue);
+            if (!isNaN(newPriceNum) && custoProduto > 0) {
+                newMarginValue = (((newPriceNum / custoProduto) - 1) * 100).toFixed(1);
+            } else {
+                newMarginValue = '';
+            }
         }
-        const newPrice = parseFloat(value);
-        setPrice(newPrice);
-        if (!isNaN(newPrice) && custoProduto > 0) {
-            const newMargin = ((newPrice / custoProduto) - 1) * 100;
-            setMargin(newMargin);
-        }
+        
+        setEditingState(prev => ({ ...prev, price: newPriceValue, margin: newMarginValue }));
+        setIsDirty(true);
     };
 
     const handleMarginChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const value = e.target.value;
-        if (value === '') {
-            setPrice('');
-            setMargin('');
-            return;
-        }
-        const newMarginPercent = parseFloat(value);
-        setMargin(newMarginPercent);
+        const newMarginValue = e.target.value;
+        let newPriceValue = editingState.price;
+
+        const newMarginPercent = parseFloat(newMarginValue);
         if (!isNaN(newMarginPercent)) {
-            const newPrice = custoProduto * (1 + newMarginPercent / 100);
-            setPrice(newPrice);
+            newPriceValue = (custoProduto * (1 + newMarginPercent / 100)).toFixed(2);
+        } else {
+            newPriceValue = '';
         }
+        
+        setEditingState(prev => ({...prev, price: newPriceValue, margin: newMarginValue}));
+        setIsDirty(true);
+    };
+
+    const handleToggleManualPrice = () => {
+        const newIsManual = !editingState.isManual;
+        let newMargin = editingState.margin;
+        
+        if (!newIsManual) {
+            const currentPrice = parseFloat(String(editingState.price));
+            if (!isNaN(currentPrice) && custoProduto > 0) {
+                newMargin = (((currentPrice / custoProduto) - 1) * 100).toFixed(1);
+            }
+        }
+
+        setEditingState(prev => ({...prev, isManual: newIsManual, margin: newMargin}));
+        setIsDirty(true);
+    };
+
+    const handleCancel = () => {
+        // Re-run initialization logic to reset the form to its last saved state
+        const newIsManual = service.precoDeVendaManual != null;
+        let currentPrice, currentMargin;
+
+        if (newIsManual) {
+             currentPrice = service.precoDeVendaManual!.toFixed(2);
+             if (custoProduto > 0) {
+                currentMargin = (((service.precoDeVendaManual! / custoProduto) - 1) * 100).toFixed(1);
+             } else {
+                currentMargin = '0.0';
+             }
+        } else {
+             currentPrice = (custoProduto * (1 + service.margemLucroDesejada)).toFixed(2);
+             currentMargin = (service.margemLucroDesejada * 100).toFixed(1);
+        }
+        
+        setEditingState({ isManual: newIsManual, price: currentPrice, margin: currentMargin });
+        setIsDirty(false);
     };
 
     const handleSave = () => {
-        const newMarginPercent = parseFloat(String(margin));
-        if (!isNaN(newMarginPercent)) {
-            setSaveState('saving');
-            onUpdateServico({ ...service, margemLucroDesejada: newMarginPercent / 100 });
-            setTimeout(() => setSaveState('saved'), 500);
-            setTimeout(() => setSaveState('idle'), 2000);
+        setSaveState('saving');
+        let updatedServico: Servico;
+
+        if (editingState.isManual) {
+            const finalPrice = parseFloat(String(editingState.price));
+            if (isNaN(finalPrice) || finalPrice < 0) {
+                alert('Preço inválido.');
+                setSaveState('idle');
+                return;
+            }
+            updatedServico = { ...service, precoDeVendaManual: finalPrice };
         } else {
-            alert('Valor da margem inválido.');
+            const newMarginPercent = parseFloat(String(editingState.margin));
+            if (isNaN(newMarginPercent)) {
+                alert('Valor da margem inválido.');
+                setSaveState('idle');
+                return;
+            }
+            updatedServico = { ...service, margemLucroDesejada: newMarginPercent / 100, precoDeVendaManual: null };
         }
+        
+        onUpdateServico(updatedServico);
+
+        setTimeout(() => {
+            setSaveState('saved');
+            setTimeout(() => setSaveState('idle'), 1500);
+        }, 500);
     };
 
     return (
         <div className="bg-white p-4 rounded-lg shadow-md border h-full flex flex-col">
-            <h4 className="font-bold text-md text-gray-800 mb-2">2. Definir Preço de Venda</h4>
-            <p className="text-xs text-gray-600 mb-4 flex-grow">
-                Ajuste o markup ou o preço final. Um alterará o outro automaticamente.
+            <div 
+                className="relative flex items-center gap-2 mb-2"
+                onMouseEnter={() => setShowTooltip(true)}
+                onMouseLeave={() => setShowTooltip(false)}
+            >
+                <h4 className="font-bold text-md text-gray-800">2. Definir Preço de Venda</h4>
+                <div className="cursor-help text-blue-500">
+                    <InfoIcon />
+                </div>
+                {showTooltip && (
+                    <div className="absolute z-20 w-64 p-3 text-sm text-gray-700 bg-white border border-gray-200 rounded-lg shadow-xl bottom-full mb-2 left-0 transition-opacity duration-200">
+                        <h5 className="font-bold text-gray-800 mb-1 border-b pb-1">Preço de Equilíbrio</h5>
+                        <p className="text-xs mt-2">
+                           Para cobrir todos os custos deste serviço, o preço mínimo de venda é{' '}
+                           <strong className="font-mono text-blue-600">{precoMinimoSugerido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong>.
+                           Vender abaixo disso pode gerar prejuízo.
+                        </p>
+                    </div>
+                )}
+            </div>
+            <p className="text-xs text-gray-600 mb-4">
+                Ajuste o markup ou o preço final. Para fixar um preço, selecione a opção manual.
             </p>
-            <div className="space-y-3">
+
+            <div className="flex items-center gap-2 mb-4">
+                <input
+                    type="checkbox"
+                    id={`manual-price-${service.servicoId}`}
+                    checked={editingState.isManual}
+                    onChange={handleToggleManualPrice}
+                    className="h-4 w-4 rounded border-gray-300 text-pink-600 focus:ring-pink-500"
+                />
+                <label htmlFor={`manual-price-${service.servicoId}`} className="text-sm text-gray-700 select-none">
+                    Definir preço manualmente (fixo)
+                </label>
+            </div>
+            
+            <div className="space-y-3 flex-grow">
                 <div>
-                    <label htmlFor={`margin-${service.servicoId}`} className="block text-sm font-medium text-gray-700">Markup de Lucro (%)</label>
+                    <label htmlFor={`margin-${service.servicoId}`} className={`block text-sm font-medium ${editingState.isManual ? 'text-gray-400' : 'text-gray-700'}`}>Markup de Lucro (%)</label>
                     <input 
                         id={`margin-${service.servicoId}`}
                         type="number" 
                         step="1"
-                        value={typeof margin === 'number' ? margin.toFixed(1) : ''}
+                        value={editingState.margin}
                         onChange={handleMarginChange}
-                        className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500"
+                        disabled={editingState.isManual}
+                        className={`mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500 ${editingState.isManual ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                     />
                 </div>
                 <div>
@@ -297,19 +419,27 @@ const ServicoPricingEditor: React.FC<{
                         id={`price-${service.servicoId}`}
                         type="number" 
                         step="0.01"
-                        value={typeof price === 'number' ? price.toFixed(2) : ''}
+                        value={editingState.price}
                         onChange={handlePriceChange}
                         className="mt-1 w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-pink-500 focus:border-pink-500"
                     />
                 </div>
             </div>
-            <div className="flex justify-end mt-4">
+            <div className="flex justify-end items-center mt-4 gap-2">
+                {isDirty && (
+                    <button
+                        onClick={handleCancel}
+                        className="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition-colors duration-300 font-semibold"
+                    >
+                        Cancelar
+                    </button>
+                )}
                 <button 
                     onClick={handleSave}
-                    disabled={saveState !== 'idle'}
+                    disabled={!isDirty || saveState !== 'idle'}
                     className={`bg-pink-600 text-white px-4 py-2 rounded-lg shadow hover:bg-pink-700 transition-colors duration-300 font-semibold disabled:bg-pink-300 disabled:cursor-not-allowed`}
                 >
-                    {saveState === 'idle' && 'Salvar Markup'}
+                    {saveState === 'idle' && 'Salvar Alterações'}
                     {saveState === 'saving' && 'Salvando...'}
                     {saveState === 'saved' && 'Salvo!'}
                 </button>
@@ -318,11 +448,16 @@ const ServicoPricingEditor: React.FC<{
     );
 };
 
-
-const ServicosView: React.FC<ServicosViewProps> = ({ servicos, priceDetailsMap, composicoes, insumos, onUpdateComposicoes, ativosFixos, custosOperacionais, horasTrabalhadasMes, onHorasTrabalhadasChange, onUpdateServico }) => {
+const ServicosView: React.FC<ServicosViewProps> = ({ servicos, priceDetailsMap, composicoes, insumos, onUpdateComposicoes, ativosFixos, custosOperacionais, horasTrabalhadasMes, onHorasTrabalhadasChange, onUpdateServico, onAddServico, onDeleteServico }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [newServiceData, setNewServiceData] = useState({
+    nomeServico: '',
+    tempoEstimadoMinutos: '',
+    precoDeVendaManual: '',
+  });
 
   const toggleExpand = (servicoId: string) => {
     setExpandedId(prevId => {
@@ -345,13 +480,65 @@ const ServicosView: React.FC<ServicosViewProps> = ({ servicos, priceDetailsMap, 
         onHorasTrabalhadasChange(value);
     }
   }
+  
+  const handleNewServiceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const { name, value } = e.target;
+      setNewServiceData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleAddNewService = (e: React.FormEvent) => {
+      e.preventDefault();
+      const { nomeServico, tempoEstimadoMinutos, precoDeVendaManual } = newServiceData;
+      if (!nomeServico || !tempoEstimadoMinutos || !precoDeVendaManual) {
+          alert("Por favor, preencha todos os campos.");
+          return;
+      }
+      onAddServico({
+          nomeServico,
+          tempoEstimadoMinutos: parseInt(tempoEstimadoMinutos, 10),
+          precoDeVendaManual: parseFloat(precoDeVendaManual),
+      });
+      setShowAddForm(false);
+      setNewServiceData({ nomeServico: '', tempoEstimadoMinutos: '', precoDeVendaManual: '' });
+  };
+  
+  const handleDeleteService = (servico: Servico) => {
+      if (window.confirm(`TEM CERTEZA que deseja excluir o serviço "${servico.nomeServico}"? Esta ação removerá o serviço e sua composição de materiais permanentemente.`)) {
+          // FIX: Changed `service` to `servico` to match the parameter name.
+          onDeleteServico(servico.servicoId);
+      }
+  };
 
   const formatCurrency = (value: number) => value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 
   return (
     <div className="space-y-6 pb-20 md:pb-6">
-      <h1 className="text-3xl font-bold text-gray-800">Serviços e Precificação</h1>
+      <div className="flex justify-between items-center">
+        <h1 className="text-3xl font-bold text-gray-800">Serviços e Precificação</h1>
+        <button
+          onClick={() => setShowAddForm(!showAddForm)}
+          className="bg-pink-600 text-white px-4 py-2 rounded-lg shadow hover:bg-pink-700 transition-colors duration-300 font-semibold"
+        >
+          {showAddForm ? 'Cancelar' : 'Novo Serviço'}
+        </button>
+      </div>
+
+      {showAddForm && (
+        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200 animate-fade-in-down">
+            <form onSubmit={handleAddNewService} className="space-y-4">
+                <h2 className="text-xl font-semibold text-gray-700">Cadastrar Novo Serviço</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <input name="nomeServico" value={newServiceData.nomeServico} onChange={handleNewServiceChange} placeholder="Nome do Serviço" required className="p-2 border rounded"/>
+                    <input name="tempoEstimadoMinutos" type="number" value={newServiceData.tempoEstimadoMinutos} onChange={handleNewServiceChange} placeholder="Tempo (minutos)" required className="p-2 border rounded"/>
+                    <input name="precoDeVendaManual" type="number" step="0.01" value={newServiceData.precoDeVendaManual} onChange={handleNewServiceChange} placeholder="Preço de Venda (R$)" required className="p-2 border rounded"/>
+                </div>
+                <div className="flex justify-end">
+                    <button type="submit" className="bg-green-500 text-white px-6 py-2 rounded-lg shadow hover:bg-green-600 transition-colors duration-300 font-semibold">Salvar Serviço</button>
+                </div>
+            </form>
+        </div>
+      )}
 
        <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
         <h2 className="text-xl font-semibold text-gray-700 mb-3">Configuração da Precificação</h2>
@@ -385,7 +572,6 @@ const ServicosView: React.FC<ServicosViewProps> = ({ servicos, priceDetailsMap, 
             const custoProduto = details.custoMaterial + details.custoAmortizacao;
             const lucroBruto = details.precoSugerido - custoProduto;
             const lucroLiquidoEstimado = details.precoSugerido - details.custoTotal;
-            {/* FIX: Use 'servico' which is in scope, and assign it to the 'service' property. */}
             const tooltipProps = { service: servico, composicoesDoServico: serviceCompositions, insumos, ativosFixos, custosOperacionais };
 
             return (
@@ -507,6 +693,22 @@ const ServicosView: React.FC<ServicosViewProps> = ({ servicos, priceDetailsMap, 
 
                             </div>
 
+                        </div>
+                         {/* Danger Zone */}
+                        <div className="mt-6 pt-4 border-t border-dashed border-red-300">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h4 className="font-semibold text-red-700">Excluir Serviço</h4>
+                                    <p className="text-xs text-gray-600">Esta ação não pode ser desfeita.</p>
+                                </div>
+                                <button
+                                    onClick={() => handleDeleteService(servico)}
+                                    className="bg-red-600 text-white px-3 py-2 rounded-lg shadow hover:bg-red-700 transition-colors duration-300 font-semibold flex items-center gap-2 text-sm"
+                                >
+                                    <TrashIcon />
+                                    Excluir
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

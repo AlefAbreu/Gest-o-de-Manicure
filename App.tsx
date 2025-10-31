@@ -78,7 +78,9 @@ function App() {
       }, 0);
 
       const custoProduto = custoMaterial + custoAmortizacao;
-      const precoSugerido = custoProduto * (1 + servico.margemLucroDesejada);
+      const precoSugerido = servico.precoDeVendaManual != null 
+        ? servico.precoDeVendaManual 
+        : custoProduto * (1 + servico.margemLucroDesejada);
 
       const rateioCustoFixo = custoHoraFixo * tempoEmHoras;
       const rateioCustoVariavel = custoHoraVariavel * tempoEmHoras;
@@ -138,7 +140,27 @@ function App() {
   const handleUpdateServico = useCallback((updatedServico: Servico) => {
     setServicos(prev => prev.map(s => s.servicoId === updatedServico.servicoId ? updatedServico : s));
   }, []);
+
+  const handleAddServico = useCallback((newServicoData: { nomeServico: string; tempoEstimadoMinutos: number; precoDeVendaManual: number }) => {
+    const newServico: Servico = {
+        servicoId: `SERV${Date.now()}`,
+        nomeServico: newServicoData.nomeServico,
+        tempoEstimadoMinutos: newServicoData.tempoEstimadoMinutos,
+        precoDeVendaManual: newServicoData.precoDeVendaManual,
+        margemLucroDesejada: 4.0, // Default markup, price is manual and will take precedence.
+    };
+    setServicos(prev => [...prev, newServico]);
+  }, []);
   
+  const handleDeleteServico = useCallback((servicoId: string) => {
+    setServicos(prev => prev.filter(s => s.servicoId !== servicoId));
+    setComposicoes(prev => prev.filter(c => c.servicoId !== servicoId));
+    setAtivosFixos(prev => prev.map(ativo => ({
+      ...ativo,
+      servicosRelacionados: ativo.servicosRelacionados.filter(id => id !== servicoId)
+    })));
+  }, []);
+
   const handleAddVenda = useCallback((newVendaData: Omit<VendaCaixa, 'vendaId' | 'dataVenda'>) => {
     const newVenda: VendaCaixa = {
         ...newVendaData,
@@ -194,6 +216,13 @@ function App() {
 
   const handleUpdateInsumo = useCallback((updatedInsumo: InsumoEstoque) => {
     setInsumos(prev => prev.map(i => i.insumoId === updatedInsumo.insumoId ? updatedInsumo : i));
+  }, []);
+
+  const handleDeleteInsumo = useCallback((insumoId: string) => {
+    if (window.confirm('TEM CERTEZA? Excluir este insumo também o removerá da composição de todos os serviços que o utilizam. Esta ação é irreversível.')) {
+      setInsumos(prev => prev.filter(i => i.insumoId !== insumoId));
+      setComposicoes(prev => prev.filter(c => c.insumoId !== insumoId));
+    }
   }, []);
 
   const handleUpdateComposicoes = useCallback((servicoId: string, updatedComps: ComposicaoServico[]) => {
@@ -258,9 +287,9 @@ function App() {
       case View.Caixa:
         return <CaixaView vendas={vendas} clientes={clientes} servicos={servicos} onAddVenda={handleAddVenda} onDeleteVenda={handleDeleteVenda} />;
       case View.Estoque:
-        return <EstoqueView insumos={insumos} onAddInsumo={handleAddInsumo} onUpdateInsumo={handleUpdateInsumo} />;
+        return <EstoqueView insumos={insumos} onAddInsumo={handleAddInsumo} onUpdateInsumo={handleUpdateInsumo} onDeleteInsumo={handleDeleteInsumo} />;
       case View.Servicos:
-        return <ServicosView servicos={servicos} priceDetailsMap={priceDetailsMap} composicoes={composicoes} insumos={insumos} onUpdateComposicoes={handleUpdateComposicoes} ativosFixos={ativosFixos} custosOperacionais={custosOperacionais} horasTrabalhadasMes={horasTrabalhadasMes} onHorasTrabalhadasChange={handleHorasTrabalhadasChange} onUpdateServico={handleUpdateServico} />;
+        return <ServicosView servicos={servicos} priceDetailsMap={priceDetailsMap} composicoes={composicoes} insumos={insumos} onUpdateComposicoes={handleUpdateComposicoes} ativosFixos={ativosFixos} custosOperacionais={custosOperacionais} horasTrabalhadasMes={horasTrabalhadasMes} onHorasTrabalhadasChange={handleHorasTrabalhadasChange} onUpdateServico={handleUpdateServico} onAddServico={handleAddServico} onDeleteServico={handleDeleteServico} />;
       case View.Clientes:
         return <ClientesView clientes={clientes} onAddCliente={handleAddCliente} onUpdateCliente={handleUpdateCliente} onDeleteCliente={handleDeleteCliente} />;
       case View.Agenda:

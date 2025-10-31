@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { InsumoEstoque, UnidadeMedida } from '../types';
-import { PencilIcon, CheckIcon, XIcon } from './icons/Icons';
+import { PencilIcon, CheckIcon, XIcon, TrashIcon } from './icons/Icons';
 
 interface EstoqueViewProps {
   insumos: InsumoEstoque[];
   onAddInsumo: (newInsumo: Omit<InsumoEstoque, 'insumoId'>) => void;
   onUpdateInsumo: (updatedInsumo: InsumoEstoque) => void;
+  onDeleteInsumo: (insumoId: string) => void;
 }
 
-const EstoqueView: React.FC<EstoqueViewProps> = ({ insumos, onAddInsumo, onUpdateInsumo }) => {
+const EstoqueView: React.FC<EstoqueViewProps> = ({ insumos, onAddInsumo, onUpdateInsumo, onDeleteInsumo }) => {
   const [showForm, setShowForm] = useState(false);
   const [formData, setFormData] = useState({
     nomeInsumo: '',
@@ -194,9 +195,12 @@ const EstoqueView: React.FC<EstoqueViewProps> = ({ insumos, onAddInsumo, onUpdat
                     {alertText && <span className="ml-2 text-xs font-semibold">{alertText}</span>}
                   </td>
 
-                  <td className="px-6 py-4">
+                  <td className="px-6 py-4 flex items-center gap-1">
                     <button onClick={() => handleStartEditing(insumo)} className="text-blue-600 hover:text-blue-800 p-1 rounded-full hover:bg-blue-100">
                         <PencilIcon />
+                    </button>
+                    <button onClick={() => onDeleteInsumo(insumo.insumoId)} className="text-red-600 hover:text-red-800 p-1 rounded-full hover:bg-red-100">
+                        <TrashIcon />
                     </button>
                   </td>
                 </tr>

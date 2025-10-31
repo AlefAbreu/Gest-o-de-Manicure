@@ -1,4 +1,3 @@
-// Fix: Removed circular import from './types' and defined missing enums.
 export enum View {
   Caixa = 'Caixa',
   Estoque = 'Estoque',
@@ -48,6 +47,7 @@ export interface Servico {
   nomeServico: string;
   tempoEstimadoMinutos: number;
   margemLucroDesejada: number;
+  precoDeVendaManual?: number | null;
 }
 
 export interface ComposicaoServico {
