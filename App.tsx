@@ -9,6 +9,7 @@ import {
   CustoOperacional,
   AtivoFixo,
   ServicePriceDetails,
+  TipoCusto,
 } from './types';
 import {
   INITIAL_INSUMOS,
@@ -27,6 +28,7 @@ import DashboardView from './components/DashboardView';
 import ClientesView from './components/ClientesView';
 import AgendaView from './components/AgendaView';
 import CustosView from './components/CustosView';
+import SettingsView from './components/SettingsView';
 
 function App() {
   // State Management
@@ -38,29 +40,23 @@ function App() {
   const [clientes, setClientes] = useState<Cliente[]>(INITIAL_CLIENTES);
   const [custosOperacionais, setCustosOperacionais] = useState<CustoOperacional[]>(INITIAL_CUSTOS_OPERACIONAIS);
   const [ativosFixos, setAtivosFixos] = useState<AtivoFixo[]>(INITIAL_ATIVOS_FIXOS);
+  const [horasTrabalhadasMes, setHorasTrabalhadasMes] = useState<number>(160); // Default 40h/semana
 
   // Business Logic & Calculations
   const priceDetailsMap = useMemo(() => {
     const detailsMap = new Map<string, ServicePriceDetails>();
 
-    const totalCustosOperacionaisMensais = custosOperacionais.reduce((acc, custo) => acc + custo.valorMensal, 0);
+    const totalCustosFixosMensais = custosOperacionais
+      .filter(c => c.tipoCusto === TipoCusto.Fixo)
+      .reduce((acc, custo) => acc + custo.valorMensal, 0);
 
-    // Estimate total work hours based on last 30 days of sales, default to 40h/week if no sales
-    const last30Days = new Date();
-    last30Days.setDate(last30Days.getDate() - 30);
-    const recentVendas = vendas.filter(v => new Date(v.dataVenda) > last30Days);
-    
-    let totalMinutosTrabalhadosMes = recentVendas.reduce((acc, venda) => {
-        const servico = servicos.find(s => s.servicoId === venda.servicoId);
-        return acc + (servico?.tempoEstimadoMinutos || 0) * venda.quantidadeServicos;
-    }, 0);
-    
-    if(totalMinutosTrabalhadosMes === 0) {
-        totalMinutosTrabalhadosMes = 40 * 60 * 4; // Default to 40h/week
-    }
+    const totalCustosVariaveisMensais = custosOperacionais
+      .filter(c => c.tipoCusto === TipoCusto.Variavel)
+      .reduce((acc, custo) => acc + custo.valorMensal, 0);
 
-    const totalHorasTrabalhadasMes = totalMinutosTrabalhadosMes / 60;
-    const custoHoraOperacional = totalHorasTrabalhadasMes > 0 ? totalCustosOperacionaisMensais / totalHorasTrabalhadasMes : 0;
+    const totalHorasTrabalhadasMes = horasTrabalhadasMes;
+    const custoHoraFixo = totalHorasTrabalhadasMes > 0 ? totalCustosFixosMensais / totalHorasTrabalhadasMes : 0;
+    const custoHoraVariavel = totalHorasTrabalhadasMes > 0 ? totalCustosVariaveisMensais / totalHorasTrabalhadasMes : 0;
 
     servicos.forEach(servico => {
       const tempoEmHoras = servico.tempoEstimadoMinutos / 60;
@@ -81,17 +77,23 @@ function App() {
         return acc;
       }, 0);
 
-      const rateioCustoOperacional = custoHoraOperacional * tempoEmHoras;
-      const custoTotal = custoMaterial + custoAmortizacao + rateioCustoOperacional;
-      const precoSugerido = custoTotal / (1 - servico.margemLucroDesejada);
-      const margemContribuicaoRS = precoSugerido - custoTotal;
+      const custoProduto = custoMaterial + custoAmortizacao;
+      const precoSugerido = custoProduto * (1 + servico.margemLucroDesejada);
+
+      const rateioCustoFixo = custoHoraFixo * tempoEmHoras;
+      const rateioCustoVariavel = custoHoraVariavel * tempoEmHoras;
+      const custoTotal = custoMaterial + custoAmortizacao + rateioCustoFixo + rateioCustoVariavel;
+      
+      const custosVariaveisServico = custoMaterial + custoAmortizacao + rateioCustoVariavel;
+      const margemContribuicaoRS = precoSugerido - custosVariaveisServico;
       const margemContribuicaoPercent = precoSugerido > 0 ? (margemContribuicaoRS / precoSugerido) * 100 : 0;
       const margemContribuicaoHora = tempoEmHoras > 0 ? margemContribuicaoRS / tempoEmHoras : 0;
 
       detailsMap.set(servico.servicoId, {
         custoMaterial,
         custoAmortizacao,
-        rateioCustoOperacional,
+        rateioCustoFixo,
+        rateioCustoVariavel,
         custoTotal,
         precoSugerido,
         margemContribuicaoRS,
@@ -101,9 +103,42 @@ function App() {
     });
 
     return detailsMap;
-  }, [servicos, composicoes, insumos, custosOperacionais, ativosFixos, vendas]);
+  }, [servicos, composicoes, insumos, custosOperacionais, ativosFixos, horasTrabalhadasMes]);
+
+  const dashboardMetrics = useMemo(() => {
+    const totalCustosFixosMensais = custosOperacionais
+      .filter(c => c.tipoCusto === TipoCusto.Fixo)
+      .reduce((acc, custo) => acc + custo.valorMensal, 0);
+      
+    const totalRevenue = vendas.reduce((acc, v) => acc + v.valorCobrado, 0);
+
+    const totalVariableCostsOfSales = vendas.reduce((acc, venda) => {
+        const details = priceDetailsMap.get(venda.servicoId);
+        if (details) {
+            const custoVariavelUnitario = details.custoMaterial + details.custoAmortizacao + details.rateioCustoVariavel;
+            return acc + (custoVariavelUnitario * venda.quantidadeServicos);
+        }
+        return acc;
+    }, 0);
+
+    const totalContributionMargin = totalRevenue - totalVariableCostsOfSales;
+    const averageContributionMarginRatio = totalRevenue > 0 ? totalContributionMargin / totalRevenue : 0;
+    
+    const pontoEquilibrioFinanceiro = averageContributionMarginRatio > 0 
+      ? totalCustosFixosMensais / averageContributionMarginRatio
+      : 0;
+
+    return {
+      pontoEquilibrioFinanceiro
+    };
+
+  }, [vendas, custosOperacionais, priceDetailsMap]);
 
   // Handler Functions
+  const handleUpdateServico = useCallback((updatedServico: Servico) => {
+    setServicos(prev => prev.map(s => s.servicoId === updatedServico.servicoId ? updatedServico : s));
+  }, []);
+  
   const handleAddVenda = useCallback((newVendaData: Omit<VendaCaixa, 'vendaId' | 'dataVenda'>) => {
     const newVenda: VendaCaixa = {
         ...newVendaData,
@@ -201,6 +236,21 @@ function App() {
     setCustosOperacionais(prev => prev.filter(c => c.custoId !== custoId));
   }, []);
 
+  const handleClearVendas = useCallback(() => {
+    if (window.confirm('TEM CERTEZA? Esta ação irá apagar permanentemente TODO o histórico de vendas. O estoque dos insumos NÃO será restaurado. Esta ação é irreversível.')) {
+      setVendas([]);
+    }
+  }, []);
+  
+  const handleClearClientes = useCallback(() => {
+    if (window.confirm('TEM CERTEZA? Esta ação irá apagar permanentemente TODOS os clientes cadastrados. As vendas associadas a eles NÃO serão apagadas, mas o nome do cliente aparecerá como "Desconhecido". Esta ação é irreversível.')) {
+      setClientes([]);
+    }
+  }, []);
+  
+  const handleHorasTrabalhadasChange = useCallback((novasHoras: number) => {
+    setHorasTrabalhadasMes(novasHoras > 0 ? novasHoras : 1);
+  }, []);
 
   // View Rendering
   const renderView = () => {
@@ -210,17 +260,19 @@ function App() {
       case View.Estoque:
         return <EstoqueView insumos={insumos} onAddInsumo={handleAddInsumo} onUpdateInsumo={handleUpdateInsumo} />;
       case View.Servicos:
-        return <ServicosView servicos={servicos} priceDetailsMap={priceDetailsMap} composicoes={composicoes} insumos={insumos} onUpdateComposicoes={handleUpdateComposicoes} />;
+        return <ServicosView servicos={servicos} priceDetailsMap={priceDetailsMap} composicoes={composicoes} insumos={insumos} onUpdateComposicoes={handleUpdateComposicoes} ativosFixos={ativosFixos} custosOperacionais={custosOperacionais} horasTrabalhadasMes={horasTrabalhadasMes} onHorasTrabalhadasChange={handleHorasTrabalhadasChange} onUpdateServico={handleUpdateServico} />;
       case View.Clientes:
         return <ClientesView clientes={clientes} onAddCliente={handleAddCliente} onUpdateCliente={handleUpdateCliente} onDeleteCliente={handleDeleteCliente} />;
       case View.Agenda:
         return <AgendaView vendas={vendas} clientes={clientes} servicos={servicos} />;
       case View.Custos:
         return <CustosView custos={custosOperacionais} onAddCusto={handleAddCusto} onEditCusto={handleEditCusto} onDeleteCusto={handleDeleteCusto} />;
+      case View.Settings:
+        return <SettingsView onClearVendas={handleClearVendas} onClearClientes={handleClearClientes} />;
       case View.Dashboard:
-        return <DashboardView vendas={vendas} servicos={servicos} insumos={insumos} priceDetailsMap={priceDetailsMap} />;
+        return <DashboardView vendas={vendas} servicos={servicos} insumos={insumos} priceDetailsMap={priceDetailsMap} pontoEquilibrioFinanceiro={dashboardMetrics.pontoEquilibrioFinanceiro} />;
       default:
-        return <DashboardView vendas={vendas} servicos={servicos} insumos={insumos} priceDetailsMap={priceDetailsMap} />;
+        return <DashboardView vendas={vendas} servicos={servicos} insumos={insumos} priceDetailsMap={priceDetailsMap} pontoEquilibrioFinanceiro={dashboardMetrics.pontoEquilibrioFinanceiro} />;
     }
   };
 

@@ -1,4 +1,3 @@
-
 import { InsumoEstoque, Servico, ComposicaoServico, VendaCaixa, Cliente, CustoOperacional, AtivoFixo, UnidadeMedida, FormaPagamento, TipoCusto } from './types';
 
 export const INITIAL_CLIENTES: Cliente[] = [
@@ -29,9 +28,9 @@ export const INITIAL_INSUMOS: InsumoEstoque[] = [
 ];
 
 export const INITIAL_SERVICOS: Servico[] = [
-  { servicoId: 'SERV001', nomeServico: 'Manicure Simples', tempoEstimadoMinutos: 60, margemLucroDesejada: 0.90 },
-  { servicoId: 'SERV002', nomeServico: 'Esmaltação em Gel', tempoEstimadoMinutos: 90, margemLucroDesejada: 0.867 },
-  { servicoId: 'SERV003', nomeServico: 'Unha de Fibra de Vidro', tempoEstimadoMinutos: 180, margemLucroDesejada: 0.875 },
+  { servicoId: 'SERV001', nomeServico: 'Manicure Simples', tempoEstimadoMinutos: 60, margemLucroDesejada: 8.0 },
+  { servicoId: 'SERV002', nomeServico: 'Esmaltação em Gel', tempoEstimadoMinutos: 90, margemLucroDesejada: 7.5 },
+  { servicoId: 'SERV003', nomeServico: 'Unha de Fibra de Vidro', tempoEstimadoMinutos: 180, margemLucroDesejada: 7.0 },
 ];
 
 export const INITIAL_COMPOSICOES: ComposicaoServico[] = [

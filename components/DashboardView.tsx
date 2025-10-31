@@ -8,9 +8,10 @@ interface DashboardViewProps {
   servicos: Servico[];
   insumos: InsumoEstoque[];
   priceDetailsMap: Map<string, ServicePriceDetails>;
+  pontoEquilibrioFinanceiro: number;
 }
 
-const DashboardView: React.FC<DashboardViewProps> = ({ vendas, servicos, priceDetailsMap }) => {
+const DashboardView: React.FC<DashboardViewProps> = ({ vendas, servicos, priceDetailsMap, pontoEquilibrioFinanceiro }) => {
     
     const kpis = useMemo(() => {
         const totalRevenue = vendas.reduce((acc, v) => acc + v.valorCobrado, 0);
@@ -60,7 +61,7 @@ const DashboardView: React.FC<DashboardViewProps> = ({ vendas, servicos, priceDe
             <h1 className="text-3xl font-bold text-gray-800">Dashboard</h1>
 
             {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
                     <h3 className="text-lg font-semibold text-gray-500">Faturamento Total</h3>
                     <p className="text-4xl font-bold text-green-600 mt-2">{kpis.totalRevenue.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
@@ -72,6 +73,11 @@ const DashboardView: React.FC<DashboardViewProps> = ({ vendas, servicos, priceDe
                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
                     <h3 className="text-lg font-semibold text-gray-500">Ticket Médio</h3>
                     <p className="text-4xl font-bold text-purple-600 mt-2">{kpis.averageTicket.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                </div>
+                 <div className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-500">Ponto de Equilíbrio Mensal</h3>
+                    <p className="text-4xl font-bold text-yellow-600 mt-2">{pontoEquilibrioFinanceiro.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
+                    <p className="text-xs text-gray-500 mt-1">Faturamento mínimo para cobrir os custos.</p>
                 </div>
             </div>
 

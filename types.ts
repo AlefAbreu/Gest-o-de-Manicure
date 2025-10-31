@@ -7,6 +7,7 @@ export enum View {
   Clientes = 'Clientes',
   Agenda = 'Agenda',
   Custos = 'Custos',
+  Settings = 'Configurações',
 }
 
 export enum UnidadeMedida {
@@ -91,7 +92,8 @@ export interface AtivoFixo {
 export interface ServicePriceDetails {
   custoMaterial: number;
   custoAmortizacao: number;
-  rateioCustoOperacional: number;
+  rateioCustoFixo: number;
+  rateioCustoVariavel: number;
   custoTotal: number;
   precoSugerido: number;
   margemContribuicaoRS: number;

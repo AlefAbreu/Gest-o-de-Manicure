@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from '../types';
-import { ChartBarIcon, CurrencyDollarIcon, CubeIcon, SparklesIcon, UserGroupIcon, CalendarIcon, CashIcon } from './icons/Icons';
+import { ChartBarIcon, CurrencyDollarIcon, CubeIcon, SparklesIcon, UserGroupIcon, CalendarIcon, CashIcon, CogIcon } from './icons/Icons';
 
 interface HeaderProps {
   currentView: View;
@@ -9,13 +9,14 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ currentView, setCurrentView }) => {
   const navItems = [
+    { view: View.Dashboard, label: 'Dashboard', icon: <ChartBarIcon /> },
     { view: View.Caixa, label: 'Caixa', icon: <CurrencyDollarIcon /> },
     { view: View.Estoque, label: 'Estoque', icon: <CubeIcon /> },
     { view: View.Servicos, label: 'Serviços', icon: <SparklesIcon /> },
     { view: View.Clientes, label: 'Clientes', icon: <UserGroupIcon /> },
     { view: View.Agenda, label: 'Agenda', icon: <CalendarIcon /> },
     { view: View.Custos, label: 'Custos', icon: <CashIcon /> },
-    { view: View.Dashboard, label: 'Dashboard', icon: <ChartBarIcon /> },
+    { view: View.Settings, label: 'Configurações', icon: <CogIcon /> },
   ];
 
   return (
